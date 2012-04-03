@@ -1101,6 +1101,8 @@ void TouchInputMapper::parseCalibration() {
             out.pressureCalibration = Calibration::PressureCalibration::PHYSICAL;
         } else if (*pressureCalibrationString == "amplitude") {
             out.pressureCalibration = Calibration::PressureCalibration::AMPLITUDE;
+        } else if (*pressureCalibrationString == "disable") {
+            out.pressureCalibration = Calibration::PressureCalibration::DISABLE;
         } else if (*pressureCalibrationString != "default") {
             ALOGW("Invalid value for touch.pressure.calibration: '%s'",
                   pressureCalibrationString->c_str());
@@ -1158,6 +1160,9 @@ void TouchInputMapper::resolveCalibration() {
     if (mRawPointerAxes.pressure) {
         if (mCalibration.pressureCalibration == Calibration::PressureCalibration::DEFAULT) {
             mCalibration.pressureCalibration = Calibration::PressureCalibration::PHYSICAL;
+        } else if (mCalibration.pressureCalibration == Calibration::PressureCalibration::DISABLE) {
+            mRawPointerAxes.pressure.valid = false;
+            mCalibration.pressureCalibration = Calibration::PressureCalibration::NONE;
         }
     } else {
         mCalibration.pressureCalibration = Calibration::PressureCalibration::NONE;
