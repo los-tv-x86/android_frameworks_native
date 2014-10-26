@@ -483,6 +483,25 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 }
 
+// FIXME: What to do with this?
+// #if defined(__i386__) || defined(__x86_64__)
+//             if (density == 0.0f) {
+//                 uint32_t area = info.w * info.h;
+//                 if (area <= 800 * 480) {
+//                     density = 120.0f;
+//                 } else if (area <= 1024 * 600) {
+//                     density = 130.0f;
+//                 } else if (area < 1024 * 768) {
+//                     density = 140.0f;
+//                 } else if (area < 1920 * 1080) {
+//                     density = 160.0f;
+//                 } else {
+//                     density = 240.0f;
+//                 }
+//                 ALOGI("auto set density to %f", density);
+//             }
+// #endif
+
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
     SFTRACE_CALL();
     ALOGI("SurfaceFlinger is starting");
