@@ -495,8 +495,10 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
 //                     density = 140.0f;
 //                 } else if (area < 1920 * 1080) {
 //                     density = 160.0f;
-//                 } else {
+//                 } else if (area < 2560 * 1600) {
 //                     density = 240.0f;
+//                 } else {
+//                     density = 320.0f;
 //                 }
 //                 ALOGI("auto set density to %f", density);
 //             }
