@@ -124,6 +124,8 @@ public:
 
     virtual std::optional<HardwareProperties> getTouchpadHardwareProperties();
 
+    virtual status_t getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo);
+
 protected:
     InputDeviceContext& mDeviceContext;
 
