@@ -2481,6 +2481,20 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     return mScheduler->createDisplayEventConnection(cycle, eventRegistration, layerHandle);
 }
 
+#ifdef CONSOLE_MANAGER
+void SurfaceFlinger::screenReleased(const sp<IBinder>& display) {
+    // this may be called by a signal handler, we can't do too much in here
+    setPowerMode(display, static_cast<int>(hal::PowerMode::OFF));
+    onLayerUpdate();
+}
+
+void SurfaceFlinger::screenAcquired(const sp<IBinder>& display) {
+    // this may be called by a signal handler, we can't do too much in here
+    setPowerMode(display, static_cast<int>(hal::PowerMode::ON));
+    onLayerUpdate();
+}
+#endif
+
 void SurfaceFlinger::scheduleCommit(FrameHint hint, Duration workDurationSlack) {
     if (hint == FrameHint::kActive) {
         mScheduler->resetAllIdleTimers();

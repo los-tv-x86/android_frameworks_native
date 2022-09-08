@@ -84,6 +84,7 @@ cc_defaults {
         "libcutils",
         "libfmq",
         "libgui",
+        "libhardware",
         "libhidlbase",
         "liblog",
         "libnativewindow",
@@ -286,6 +287,8 @@ cc_defaults {
     ],
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
     ],
     shared_libs: [
         "android.hardware.configstore-utils",
