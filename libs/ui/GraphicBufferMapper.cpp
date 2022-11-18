@@ -31,6 +31,7 @@
 #include <sync/sync.h>
 #pragma clang diagnostic pop
 
+#include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -62,36 +63,90 @@ static bool requireMapper4() {
 }
 
 void GraphicBufferMapper::preloadHal() {
-    if (!requireMapper4()) {
-        Gralloc2Mapper::preload();
-        Gralloc3Mapper::preload();
+    char default_mapper[PROPERTY_VALUE_MAX];
+    property_get("debug.ui.default_mapper", default_mapper, "");
+    switch (atoi(default_mapper)) {
+        case 2:
+            Gralloc2Mapper::preload();
+            break;
+        case 3:
+            Gralloc3Mapper::preload();
+            break;
+        case 4:
+            Gralloc4Mapper::preload();
+            break;
+        case 5:
+            Gralloc5Mapper::preload();
+            break;
+        default:
+            if (!requireMapper4()) {
+                Gralloc2Mapper::preload();
+                Gralloc3Mapper::preload();
+            }
+            Gralloc4Mapper::preload();
+            Gralloc5Mapper::preload();
+            break;
     }
-    Gralloc4Mapper::preload();
-    Gralloc5Mapper::preload();
 }
 
 GraphicBufferMapper::GraphicBufferMapper() {
-    mMapper = std::make_unique<const Gralloc5Mapper>();
-    if (mMapper->isLoaded()) {
-        mMapperVersion = Version::GRALLOC_5;
-        return;
-    }
-    mMapper = std::make_unique<const Gralloc4Mapper>();
-    if (mMapper->isLoaded()) {
-        mMapperVersion = Version::GRALLOC_4;
-        return;
-    }
-    if (!requireMapper4()) {
-        mMapper = std::make_unique<const Gralloc3Mapper>();
-        if (mMapper->isLoaded()) {
-            mMapperVersion = Version::GRALLOC_3;
-            return;
-        }
-        mMapper = std::make_unique<const Gralloc2Mapper>();
-        if (mMapper->isLoaded()) {
-            mMapperVersion = Version::GRALLOC_2;
-            return;
-        }
+    // debug.ui.default_mapper=2..5 forces one mapper version; unset keeps the
+    // newest-first probe.
+    char default_mapper[PROPERTY_VALUE_MAX];
+    property_get("debug.ui.default_mapper", default_mapper, "");
+    switch (atoi(default_mapper)) {
+        case 5:
+            mMapper = std::make_unique<const Gralloc5Mapper>();
+            if (mMapper->isLoaded()) {
+                mMapperVersion = Version::GRALLOC_5;
+                return;
+            }
+            break;
+        case 4:
+            mMapper = std::make_unique<const Gralloc4Mapper>();
+            if (mMapper->isLoaded()) {
+                mMapperVersion = Version::GRALLOC_4;
+                return;
+            }
+            break;
+        case 3:
+            mMapper = std::make_unique<const Gralloc3Mapper>();
+            if (mMapper->isLoaded()) {
+                mMapperVersion = Version::GRALLOC_3;
+                return;
+            }
+            break;
+        case 2:
+            mMapper = std::make_unique<const Gralloc2Mapper>();
+            if (mMapper->isLoaded()) {
+                mMapperVersion = Version::GRALLOC_2;
+                return;
+            }
+            break;
+        default:
+            mMapper = std::make_unique<const Gralloc5Mapper>();
+            if (mMapper->isLoaded()) {
+                mMapperVersion = Version::GRALLOC_5;
+                return;
+            }
+            mMapper = std::make_unique<const Gralloc4Mapper>();
+            if (mMapper->isLoaded()) {
+                mMapperVersion = Version::GRALLOC_4;
+                return;
+            }
+            if (!requireMapper4()) {
+                mMapper = std::make_unique<const Gralloc3Mapper>();
+                if (mMapper->isLoaded()) {
+                    mMapperVersion = Version::GRALLOC_3;
+                    return;
+                }
+                mMapper = std::make_unique<const Gralloc2Mapper>();
+                if (mMapper->isLoaded()) {
+                    mMapperVersion = Version::GRALLOC_2;
+                    return;
+                }
+            }
+            break;
     }
 
     LOG_ALWAYS_FATAL("gralloc-mapper is missing");
