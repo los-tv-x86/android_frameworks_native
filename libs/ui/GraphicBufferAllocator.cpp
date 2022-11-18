@@ -28,6 +28,7 @@
 #include <grallocusage/GrallocUsageConversion.h>
 
 #include <android-base/stringprintf.h>
+#include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Singleton.h>
 #include <utils/Trace.h>
@@ -52,24 +53,57 @@ KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
 GraphicBufferAllocator::GraphicBufferAllocator() : mMapper(GraphicBufferMapper::getInstance()) {
-    switch (mMapper.getMapperVersion()) {
-        case GraphicBufferMapper::GRALLOC_5:
+    char default_gralloc[PROPERTY_VALUE_MAX]; 
+    property_get("debug.ui.default_mapper", default_gralloc, "");
+
+    if (std::string(default_gralloc).empty()) {
+        switch (mMapper.getMapperVersion()) {
+            case GraphicBufferMapper::GRALLOC_5:
+                mAllocator = std::make_unique<const Gralloc5Allocator>(
+                        reinterpret_cast<const Gralloc5Mapper&>(mMapper.getGrallocMapper()));
+                break;
+            case GraphicBufferMapper::GRALLOC_4:
+                mAllocator = std::make_unique<const Gralloc4Allocator>(
+                        reinterpret_cast<const Gralloc4Mapper&>(mMapper.getGrallocMapper()));
+                break;
+            case GraphicBufferMapper::GRALLOC_3:
+                mAllocator = std::make_unique<const Gralloc3Allocator>(
+                        reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
+                break;
+            case GraphicBufferMapper::GRALLOC_2:
+                mAllocator = std::make_unique<const Gralloc2Allocator>(
+                        reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
+                break;
+        }
+    } else {
+        if (atoi(default_gralloc) == 5) {
             mAllocator = std::make_unique<const Gralloc5Allocator>(
                     reinterpret_cast<const Gralloc5Mapper&>(mMapper.getGrallocMapper()));
-            break;
-        case GraphicBufferMapper::GRALLOC_4:
+            if (mAllocator->isLoaded()) {
+                return;
+            }
+        } else if (atoi(default_gralloc) == 4) {
             mAllocator = std::make_unique<const Gralloc4Allocator>(
                     reinterpret_cast<const Gralloc4Mapper&>(mMapper.getGrallocMapper()));
-            break;
-        case GraphicBufferMapper::GRALLOC_3:
+            if (mAllocator->isLoaded()) {
+                return;
+            }
+        } else if (atoi(default_gralloc) == 3) {
             mAllocator = std::make_unique<const Gralloc3Allocator>(
                     reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
-            break;
-        case GraphicBufferMapper::GRALLOC_2:
+            if (mAllocator->isLoaded()) {
+                return;
+            }
+        //TODO: need to fix ?
+        } else {
             mAllocator = std::make_unique<const Gralloc2Allocator>(
                     reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
-            break;
+            if (mAllocator->isLoaded()) {
+                return;
+            }
+        }
     }
+
     LOG_ALWAYS_FATAL_IF(!mAllocator->isLoaded(),
                         "Failed to load matching allocator for mapper version %d",
                         mMapper.getMapperVersion());
