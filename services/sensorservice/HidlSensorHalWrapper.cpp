@@ -21,6 +21,7 @@
 #include "convertV2_1.h"
 
 #include <android-base/logging.h>
+#include <cutils/properties.h>
 
 using android::hardware::hidl_vec;
 using android::hardware::sensors::V1_0::RateLevel;
@@ -405,15 +406,20 @@ void HidlSensorHalWrapper::handleHidlDeath(const std::string& detail) {
 }
 
 bool HidlSensorHalWrapper::connectHidlService() {
-    HalConnectionStatus status = connectHidlServiceV2_1();
-    if (status == HalConnectionStatus::DOES_NOT_EXIST) {
-        status = connectHidlServiceV2_0();
-    }
+    if (property_get_bool("debug.sensors.use_legacy", true)) {
+        HalConnectionStatus status = connectHidlServiceV1_0();
+        return (status == HalConnectionStatus::CONNECTED);
+    } else {
+        HalConnectionStatus status = connectHidlServiceV2_1();
+        if (status == HalConnectionStatus::DOES_NOT_EXIST) {
+            status = connectHidlServiceV2_0();
+        }
 
-    if (status == HalConnectionStatus::DOES_NOT_EXIST) {
-        status = connectHidlServiceV1_0();
+        if (status == HalConnectionStatus::DOES_NOT_EXIST) {
+            status = connectHidlServiceV1_0();
+        }
+        return (status == HalConnectionStatus::CONNECTED);
     }
-    return (status == HalConnectionStatus::CONNECTED);
 }
 
 ISensorHalWrapper::HalConnectionStatus HidlSensorHalWrapper::connectHidlServiceV1_0() {
