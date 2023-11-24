@@ -41,6 +41,9 @@ cc_defaults {
         "-Wshadow-field-in-constructor-modified",
         "-Wshadow-uncaptured-local",
         "-Wthread-safety",
+        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
     ],
     sanitize: {
         misc_undefined: [
