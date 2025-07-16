@@ -91,6 +91,12 @@ void RenderSurface::initialize() {
         ALOGI("Use BGRA_8888 as surface format when EGL is \"%s\"", value);
         if (!strcmp("swiftshader", value)) {
             format = HAL_PIXEL_FORMAT_BGRA_8888;
+        } else if (!strcmp("angle", value)) {
+            char vulkan_hal[PROPERTY_VALUE_MAX];
+            if (property_get("ro.hardware.vulkan", vulkan_hal, NULL) > 0) {
+                ALOGI("ANGLE is set, backend is: \"%s\"", vulkan_hal);
+                if (!strcmp("pastel", vulkan_hal)) {
+                    format = HAL_PIXEL_FORMAT_BGRA_8888;}}
         }
     }
 
