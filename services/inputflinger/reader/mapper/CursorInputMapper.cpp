@@ -95,68 +95,6 @@ void CursorMotionAccumulator::finishSync() {
     clearRelativeAxes();
 }
 
-// --- CursorPositionAccumulator ---
-
-CursorPositionAccumulator::CursorPositionAccumulator() : mMinAbsX(0), mMinAbsY(0), mMaxAbsX(0), mMaxAbsY(0), mHasAbsX(false), mHasAbsY(false), mMoved(false) {
-    clearPos();
-}
-
-void CursorPositionAccumulator::reset(InputDeviceContext& deviceContext) {
-    clearPos();
-}
-
-void CursorPositionAccumulator::configure(InputMapper* im, InputDeviceContext& deviceContext) {
-    mHasAbsX = deviceContext.hasAbsoluteAxis(ABS_X);
-    mHasAbsY = deviceContext.hasAbsoluteAxis(ABS_Y);
-    if (hasAbsX()) {
-        RawAbsoluteAxisInfo axisInfo;
-        im->getAbsoluteAxisInfo(ABS_X, &axisInfo);
-        mMinAbsX = axisInfo.minValue;
-        mMaxAbsX = axisInfo.maxValue;
-    }
-    if (hasAbsY()) {
-        RawAbsoluteAxisInfo axisInfo;
-        im->getAbsoluteAxisInfo(ABS_Y, &axisInfo);
-        mMinAbsY = axisInfo.minValue;
-        mMaxAbsY = axisInfo.maxValue;
-    }
-}
-
-void CursorPositionAccumulator::clearPos() {
-    mDeltaX = 0;
-    mDeltaY = 0;
-}
-
-void CursorPositionAccumulator::process(const RawEvent* rawEvent) {
-    if (rawEvent->type == EV_ABS) {
-        int32_t newValue = rawEvent->value;
-        switch (rawEvent->code) {
-            case ABS_X:
-                newValue -= mMinAbsX;
-                if (mMoved) {
-                    mDeltaX = newValue - mX;
-                } else {
-                    mMoved = true;
-                }
-                mX = newValue;
-                break;
-            case ABS_Y:
-                newValue -= mMinAbsY;
-                if (mMoved) {
-                    mDeltaY = newValue - mY;
-                } else {
-                    mMoved = true;
-                }
-                mY = newValue;
-                break;
-        }
-    }
-}
-
-void CursorPositionAccumulator::finishSync() {
-    clearPos();
-}
-
 // --- CursorInputMapper ---
 
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
@@ -203,10 +141,6 @@ void CursorInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "YScale: %0.3f\n", mYScale);
     dump += StringPrintf(INDENT3 "XPrecision: %0.3f\n", mXPrecision);
     dump += StringPrintf(INDENT3 "YPrecision: %0.3f\n", mYPrecision);
-    dump += StringPrintf(INDENT3 "AbsXScale: %0.3f\n", mAbsXScale);
-    dump += StringPrintf(INDENT3 "AbsYScale: %0.3f\n", mAbsYScale);
-    dump += StringPrintf(INDENT3 "AbsXPrecision: %0.3f\n", mAbsXPrecision);
-    dump += StringPrintf(INDENT3 "AbsYPrecision: %0.3f\n", mAbsYPrecision);
     dump += StringPrintf(INDENT3 "HaveVWheel: %s\n",
                          toString(mCursorScrollAccumulator.haveRelativeVWheel()));
     dump += StringPrintf(INDENT3 "HaveHWheel: %s\n",
@@ -316,37 +250,15 @@ std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
 
     mCursorButtonAccumulator.reset(getDeviceContext());
     mCursorMotionAccumulator.reset(getDeviceContext());
-    mCursorPositionAccumulator.reset(getDeviceContext());
     mCursorScrollAccumulator.reset(getDeviceContext());
 
     return InputMapper::reset(when);
-}
-
-void CursorInputMapper::rotateAbsolute(ui::Rotation orientation, float* absX, float* absY) {
-    float temp = *absX;
-    switch (orientation) {
-        case ui::ROTATION_90:
-            *absX = *absY;
-            *absY = (mCursorPositionAccumulator.getSpanAbsX() * mXScale) - temp;
-            break;
-        case ui::ROTATION_180:
-            *absX = (mCursorPositionAccumulator.getSpanAbsX() * mXScale) - *absX;
-            *absY = (mCursorPositionAccumulator.getSpanAbsY() * mYScale) - *absY;
-            break;
-        case ui::ROTATION_270:
-            *absX = (mCursorPositionAccumulator.getSpanAbsY() * mYScale) - *absY;
-            *absY = temp;
-            break;
-        default:
-            break;
-    }
 }
 
 std::list<NotifyArgs> CursorInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out;
     mCursorButtonAccumulator.process(rawEvent);
     mCursorMotionAccumulator.process(rawEvent);
-    mCursorPositionAccumulator.process(rawEvent);
     mCursorScrollAccumulator.process(rawEvent);
 
     if (rawEvent.type == EV_SYN && rawEvent.code == SYN_REPORT) {
@@ -393,22 +305,6 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
 
     // Rotate delta according to orientation.
     rotateDelta(mOrientation, &deltaX, &deltaY);
-
-    float absX = mCursorPositionAccumulator.getX() * mAbsXScale;
-    float absY = mCursorPositionAccumulator.getY() * mAbsYScale;
-    bool movedAbs = mCursorPositionAccumulator.hasMoved() && absX >= 0 && absY >= 0;
-
-    // Rotate absolute according to orientation.
-    rotateAbsolute(mOrientation, &absX, &absY);
-
-    if (!moved && movedAbs) {
-        // Delta emulation for cursor grab.
-        deltaX = mCursorPositionAccumulator.getDeltaX() * mXScale;
-        deltaY = mCursorPositionAccumulator.getDeltaY() * mYScale;
-
-        // Rotate delta according to orientation.
-        rotateDelta(mOrientation, &deltaX, &deltaY);
-    }
 
     // Move the pointer.
     PointerProperties pointerProperties;
@@ -472,7 +368,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     // the device in your pocket.
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
-    if ((buttonsPressed || moved || movedAbs || scrolled) && getDeviceContext().isExternal()) {
+    if ((buttonsPressed || moved || scrolled) && getDeviceContext().isExternal()) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 
@@ -514,12 +410,6 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     // Send motion events for buttons and scrolling.
     if (downChanged || scrolled || buttonsChanged) {
         int32_t buttonState = lastButtonState;
-        float xPrecision = mXPrecision;
-        float yPrecision = mYPrecision;
-        if (!moved && movedAbs) {
-            xPrecision = mAbsXPrecision;
-            yPrecision = mAbsYPrecision;
-        }
 
         PointerCoords pointerCoords;
         pointerCoords.clear();
@@ -543,9 +433,8 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                                getDeviceId(), mSource, *mDisplayId, policyFlags,
                                                AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
                                                metaState, buttonState, MotionClassification::NONE,
-                                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                               &pointerCoords, xPrecision, yPrecision,
-                                               xCursorPosition, yCursorPosition,
+                                               1, &pointerProperties, &pointerCoords, mXPrecision,
+                                               mYPrecision, xCursorPosition, yCursorPosition,
                                                downTime, /*videoFrames=*/{}));
             }
         }
@@ -555,9 +444,9 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
                                            mSource, *mDisplayId, policyFlags, action, 0, 0,
                                            metaState, currentButtonState,
-                                           MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                                           1, &pointerProperties, &pointerCoords, xPrecision,
-                                           yPrecision, xCursorPosition, yCursorPosition, downTime,
+                                           MotionClassification::NONE, 1, &pointerProperties,
+                                           &pointerCoords, mXPrecision, mYPrecision,
+                                           xCursorPosition, yCursorPosition, downTime,
                                            /*videoFrames=*/{}));
         }
 
@@ -570,10 +459,9 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                                getDeviceId(), mSource, *mDisplayId, policyFlags,
                                                AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
                                                metaState, buttonState, MotionClassification::NONE,
-                                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                               &pointerCoords, xPrecision, yPrecision,
-                                               xCursorPosition, yCursorPosition, downTime,
-                                               /*videoFrames=*/{}));
+                                               1, &pointerProperties, &pointerCoords, mXPrecision,
+                                               mYPrecision, xCursorPosition, yCursorPosition,
+                                               downTime, /*videoFrames=*/{}));
             }
         }
 
@@ -584,10 +472,9 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
                                            mSource, *mDisplayId, policyFlags,
                                            AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                                           currentButtonState, MotionClassification::NONE,
-                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                           &pointerCoords, xPrecision, yPrecision,
-                                           xCursorPosition, yCursorPosition, downTime,
+                                           currentButtonState, MotionClassification::NONE, 1,
+                                           &pointerProperties, &pointerCoords, mXPrecision,
+                                           mYPrecision, xCursorPosition, yCursorPosition, downTime,
                                            /*videoFrames=*/{}));
         }
 
@@ -599,10 +486,9 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
                                            mSource, *mDisplayId, policyFlags,
                                            AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
-                                           currentButtonState, MotionClassification::NONE,
-                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                           &pointerCoords, xPrecision, yPrecision,
-                                           xCursorPosition, yCursorPosition, downTime,
+                                           currentButtonState, MotionClassification::NONE, 1,
+                                           &pointerProperties, &pointerCoords, mXPrecision,
+                                           mYPrecision, xCursorPosition, yCursorPosition, downTime,
                                            /*videoFrames=*/{}));
         }
     }
@@ -613,7 +499,6 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                 currentButtonState);
 
     mCursorMotionAccumulator.finishSync();
-    mCursorPositionAccumulator.finishSync();
     mCursorScrollAccumulator.finishSync();
     return out;
 }
@@ -632,7 +517,6 @@ std::optional<ui::LogicalDisplayId> CursorInputMapper::getAssociatedDisplayId() 
 
 void CursorInputMapper::configureBasicParams() {
     mCursorScrollAccumulator.configure(getDeviceContext());
-    mCursorPositionAccumulator.configure(this, getDeviceContext());
 
     // Configure basic parameters.
     mParameters = computeParameters(getDeviceContext());
@@ -662,10 +546,6 @@ void CursorInputMapper::configureBasicParams() {
 
     mVWheelScale = 1.0f;
     mHWheelScale = 1.0f;
-    mAbsXPrecision = 1.0f;
-    mAbsYPrecision = 1.0f;
-    mAbsXScale = 1.0f;
-    mAbsYScale = 1.0f;
 }
 
 void CursorInputMapper::configureOnPointerCapture(const InputReaderConfiguration& config) {
@@ -763,15 +643,6 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
         // we use SCALING_BASELINE_DENSITY if density information is not available,
         // this will set scaling to 1.0f.
         mViewportDensityDpi = mViewportXDpi = mViewportYDpi = SCALING_BASELINE_DENSITY;
-    }
-
-    if (mDisplayId && mCursorPositionAccumulator.isSupported()) {
-        if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
-            mAbsXScale = float(viewport->physicalRight - viewport->physicalLeft) / mCursorPositionAccumulator.getSpanAbsX();
-            mAbsYScale = float(viewport->physicalBottom - viewport->physicalTop) / mCursorPositionAccumulator.getSpanAbsY();
-            mAbsXPrecision = 1.0f / mAbsXScale;
-            mAbsYPrecision = 1.0f / mAbsYScale;
-        }
     }
 
     bumpGeneration();
